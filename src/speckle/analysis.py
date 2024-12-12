@@ -6,20 +6,18 @@ class Analysis:
 
     def __init__(self,pattern: np.array):
         self.pattern = pattern
-        self.fft: np.array
-        self.magnitude_spectrum: np.array
 
+    def fft(pattern: np.array) -> np.array:
+        fft = np.fft.fftshift(np.fft.fft2(self.pattern))
+        return fft
+    
+    def fft_mag(self) -> np.array:
+        magnitude_spectrum = np.abs(self.fft)
+        return magnitude_spectrum
 
-    def fft(self) -> None:
-        self.fft = np.fft.fftshift(np.fft.fft2(self.pattern))
-        self.magnitude_spectrum = np.abs(self.fft)
-
-    def fftplot(self) -> None:
-        if self.magnitude_spectrum is None:
-            raise ValueError("FFT analysis has not been performed. Please run analyze() first.")
-        
+    def fftplot(magnitude_spectrum):        
         plt.figure()
         plt.title('FFT Analysis of Speckle Pattern')
-        plt.imshow(np.log(1 + self.magnitude_spectrum), cmap='viridis')
+        plt.imshow(np.log(1 + magnitude_spectrum), cmap='viridis')
         plt.colorbar(label='Magnitude')
         plt.show()
