@@ -1,17 +1,11 @@
 import speckle
 
-# print(speckle_joel.__version__)
-print("test")
-
-generate = speckle.Generate(image_width=4000,image_height=1000, radius=5, variability=0.3)
+generate = speckle.Generate(image_width=500,image_height=500, mean_radius=4, spacing=20, variability=0.2,stddev= 0.1)
 speckle_pattern = generate.pattern()
+stats = generate.statistics(speckle_pattern)
+print(stats)
 
-image = speckle.Image(speckle_pattern)
-image.balance(0.5)
-image.invert(True)
-image.show()
-image.save("./test.tiff",format="TIFF",resolution=300)
-
-fft_analysis = speckle.Analysis(pattern=speckle_pattern)
-fft_analysis.fft()
-fft_analysis.fftplot()
+fft_analysis = speckle.Analysis()
+fft_pattern = fft_analysis.fft(speckle_pattern)
+fft_mag  = fft_analysis.fft_mag(fft_pattern)
+fft_analysis.fftplot(fft_mag)
