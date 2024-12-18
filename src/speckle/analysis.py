@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
+from scipy import signal
 import math
 
 class Analysis:
@@ -52,6 +53,26 @@ class Analysis:
         plt.show()
 
         return None
+
+
+
+    def fft_gridspacing(self, spec: np.array, prominence=(0.3,1.0)) -> None:
+        """ 
+        estimate the grid spacing from the fft spectrum.
+        User provides one-sided array. 
+        """
+        
+        freq_x = np.fft.fftfreq(spec.size)
+
+        one_sided = np.flip(spec[:(spec.size//2)])
+        one_sided_normed = one_sided / np.max(one_sided)
+
+        peaks, properties = signal.find_peaks(one_sided_normed, prominence=prominence)
+
+        spacing = 1.0 / freq_x[peaks[0]]
+
+        return spacing
+
 
 
 
@@ -138,9 +159,6 @@ class Analysis:
 
         peak_value = acf_normed.max()
         peak_x, peak_y = np.unravel_index(acf_normed.argmax(), acf_normed.shape)
-
-        print(peak_value)
-        print(peak_x, peak_y)
 
         mean_cardinal = (acf_normed[peak_x , peak_y+1] + \
                          acf_normed[peak_x,  peak_y+1] + \
