@@ -6,7 +6,7 @@ class Image:
 
     def __init__(self,pattern: np.array):
         self.pattern = pattern
-    
+
     def balance(self, balance: float) -> None:
         self.pattern = self.pattern * balance
 
@@ -16,8 +16,9 @@ class Image:
 
     def show(self) -> None:
         plt.figure()
-        plt.title('Test Speckle Pattern')
-        plt.imshow(self.pattern,cmap='gray', vmin=0, vmax=1) 
+        plt.xlabel('Pixels')
+        plt.ylabel('Pixels')
+        plt.imshow(self.pattern,cmap='gray', vmin=0, vmax=1)
         plt.show()
 
     def save(self,filename: str,format: str, resolution: int) -> None:
