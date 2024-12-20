@@ -41,9 +41,13 @@ The package is organized into the following modules:
 
 A series of example scripts demonstrating usage can be found in `speckle/examples/`
 ```
+.gitignore
+pyproject.toml
+README.md
 src/
 │
 ├── speckle/
+│   ├── __init__.py
 │   ├── pattern.py   # Handles speckle pattern generation.
 │   ├── image.py     # Manipulates and visualizes patterns.
 │   ├── analysis.py  # Analytical tools for speckle evaluation.
@@ -53,8 +57,6 @@ src/
 │   ├── example1_generate_and_save_pattern.py
 │   ├── example2_find_spacing.py
 │   ├── example3_auto_correlation_peak_sharpness.py
-│
-└── README.md        # Documentation.
 ```
 
 
