@@ -60,7 +60,7 @@ class Image:
         return None
 
 
-    def save(self,filename: str, resolution: int, format: str = "TIFF") -> None:
+    def save(self,filename: str, format: str = "TIFF", resolution: int = 512) -> None:
         """
         Save 2D array as an image with PIL package.
 

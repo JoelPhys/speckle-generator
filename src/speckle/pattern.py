@@ -118,7 +118,6 @@ class Pattern:
 
         Returns:
             None: Prints mean pixel value and speckle size information to stdout
-        
         """
         
         pattern_density = np.average(self.pattern) * 100  # Convert to percentage
