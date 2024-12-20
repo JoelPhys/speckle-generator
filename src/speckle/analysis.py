@@ -1,8 +1,8 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
 from scipy import signal
-import math
 
 class Analysis:
 
@@ -12,44 +12,61 @@ class Analysis:
 
 
     def fft(self) -> np.array:
-        """ return 2D fft of speckle pattern """
+        """ 
+        return frequency shifted 2D fft of speckle pattern 
+        """
+
         fft = np.fft.fftshift(np.fft.fft2(self.pattern))
+
         return fft
 
 
 
     def fft_mag(self) -> np.array:
-        """ return fft magnitude of fft array """
+        """ 
+        returns frequency shifted fft magnitude of the fft array returned from Analysis.fft()
+        """
+        
         mag_spec = np.abs(np.fft.fftshift(np.fft.fft2(self.pattern)))
+        
         return mag_spec
 
 
 
-    def fft_plotimage(self, mag_spec: np.array) -> None:     
-        """ image plot of FFT pattern. Displays correct frequency ranges. Viridis color map. """   
+    def fft_plotimage(self, spectrum: np.array, cmap: str = "viridis") -> None:     
+        """ 
+        image plot of FFT pattern. Displays correct frequency ranges. Viridis color map. 
+        """
 
-        freq_x = np.fft.fftshift(np.fft.fftfreq(mag_spec.shape[0]))
-        freq_y = np.fft.fftshift(np.fft.fftfreq(mag_spec.shape[1]))
+        # Get frequency values from array dimensions.
+        freq_x = np.fft.fftshift(np.fft.fftfreq(spectrum.shape[0]))
+        freq_y = np.fft.fftshift(np.fft.fftfreq(spectrum.shape[1]))
+        freq_range = [freq_x[0], freq_x[-1], freq_y[0], freq_y[-1]]
 
+        # image plot of spectrum magnitude.
         plt.figure()
         plt.title('FFT Analysis of Speckle Pattern')
-        plt.imshow(np.log(1 + mag_spec), cmap='viridis',extent=(freq_x[0], freq_x[-1], freq_y[0], freq_y[-1]))
+        plt.imshow(np.log(1 + spectrum), cmap=cmap,extent=freq_range)
         plt.colorbar(label='Magnitude')
         plt.show()
 
         return None
 
 
-    def fft_plotline(self, mag_spec: np.array) -> None:        
-        """ line plot of FFT pattern along required direction. User provide 1D array """   
+    def fft_plotline(self, slice: np.array) -> None:
+        """ 
+        line plot of FFT pattern along required direction. User provide 1D array 
+        """
 
-        freq_x = np.fft.fftshift(np.fft.fftfreq(mag_spec.shape[0]))
+        # Get frequency values from array dimensions.
+        freq_x = np.fft.fftshift(np.fft.fftfreq(slice.shape[0]))
 
+        # Line plot along 1D path specified by user.
         plt.figure()
         plt.title('FFT Analysis of Speckle Pattern')
         plt.xlabel("Frequency")
         plt.ylabel("Amplitude")
-        plt.plot(freq_x,mag_spec)
+        plt.plot(freq_x,slice)
         plt.show()
 
         return None
@@ -61,7 +78,7 @@ class Analysis:
         estimate the grid spacing from the fft spectrum.
         User provides one-sided array. 
         """
-        
+
         freq_x = np.fft.fftfreq(spec.size)
 
         one_sided = np.flip(spec[:(spec.size//2)])
@@ -79,7 +96,7 @@ class Analysis:
 
     def mean_intensity_gradient(self) -> float:
         """ 
-        Mean Intensity Gradient. 
+        Mean Intensity Gradient. Based on the below: 
         https://www.sciencedirect.com/science/article/abs/pii/S0143816613001103 
         """
 
@@ -105,7 +122,7 @@ class Analysis:
 
     def shannon_entropy(self) -> float:
         """ 
-        shannon entropy for speckle patterns: 
+        shannon entropy for speckle patterns. Based on the below: 
         https://www.sciencedirect.com/science/article/abs/pii/S0030402615007950 
         """
 
@@ -125,7 +142,7 @@ class Analysis:
     
     def auto_correlation_peak_sharpness(self) -> float:
         """
-        Compute the autocorrelation function (ACF) of the pattern:
+        Compute the autocorrelation function (ACF) of the pattern. Based on the below:
         https://link.springer.com/chapter/10.1007/978-1-4614-4235-6_34
         """
 
@@ -139,6 +156,10 @@ class Analysis:
 
 
     def auto_correlation(self, pattern: np.array) -> np.array:
+        """
+        Calculations Autocorrelatio of a 2D np.array. See here for some good matlab docs:
+        https://uk.mathworks.com/help/econ/autocorrelation-and-partial-autocorrelation.html
+        """
 
         fft_forward = np.fft.fft2(pattern)
         power_spec = np.abs(fft_forward)**2
