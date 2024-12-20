@@ -1,8 +1,0 @@
-[project]
-name = "speckle"
-description = "A Python Speckle Generator"
-authors = [
-    {name = "JoelPhys", email = "joel.hirst@ukaea.uk"}
-]
-readme = "README.md"
-requires-python = ">=3.12"

@@ -1,0 +1,5 @@
+.venv
+src/speckle_joel.egg-info
+src/speckle.egg-info
+build/*
+literature/*
