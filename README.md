@@ -41,9 +41,9 @@ The package is organized into the following modules:
 
 A series of example scripts demonstrating usage can be found in `speckle/examples/`
 ```
-speckle/
+src/
 │
-├── src/
+├── speckle/
 │   ├── pattern.py   # Handles speckle pattern generation.
 │   ├── image.py     # Manipulates and visualizes patterns.
 │   ├── analysis.py  # Analytical tools for speckle evaluation.
