@@ -40,7 +40,7 @@ class Pattern:
         self.var = variability
         self.stddev = stddev
         self.spacing = spacing
-        self.radius = np.zeros((image_width,image_height), dtype=int)
+        self.radii = np.zeros((image_width,image_height), dtype=int)
         self.grid_x = np.zeros((image_width,image_height), dtype=int)
         self.grid_y = np.zeros((image_width,image_height), dtype=int)
         self.pattern = np.zeros((image_width,image_height), dtype=int)
@@ -78,12 +78,12 @@ class Pattern:
 
 
         # pull speckle size from a normal distribution with user defined mean size and standard deviation.
-        speck_radii = np.random.normal(self.mean_radius, self.stddev, nspeckles).astype(int)
+        self.radii = np.random.normal(self.mean_radius, self.stddev, nspeckles).astype(int)
 
 
         # loop over all grid points and create a circle mask. Mask then applied to pattern array.
         for ii in range(0, nspeckles):
-            x,y,mask = circle_mask(self.grid_x[ii], self.grid_y[ii], speck_radii[ii], self.image_width, self.image_height)
+            x,y,mask = circle_mask(self.grid_x[ii], self.grid_y[ii], self.radii[ii], self.image_width, self.image_height)
             self.pattern[x[mask], y[mask]] = 1
 
         return self.pattern
@@ -123,9 +123,9 @@ class Pattern:
         pattern_density = np.average(self.pattern) * 100  # Convert to percentage
         
         # Calculate average, min, and max radius
-        radius_avg = np.average(self.radius)
-        radius_min = np.min(self.radius)
-        radius_max = np.max(self.radius)
+        radius_avg = np.average(self.radii)
+        radius_min = np.min(self.radii)
+        radius_max = np.max(self.radii)
 
         print(f"{'Mean Pixel Value of Entire Pattern:':45}" +  f"{pattern_density:.2f}" + " [%]")
         print(f"{'Average Speckle Radius:':45}" + f"{radius_avg:.2f}" + " [pixels]" )
