@@ -1,5 +1,5 @@
 import numpy as np
-
+from scipy.ndimage import gaussian_filter
 
 def create_flattened_grid(nspeckles_x: int, nspeckles_y: int, width: int, height: int) -> tuple:
     """
@@ -76,3 +76,14 @@ def circle_mask(pos_x: int, pos_y: int, radius: int, img_width: int, img_height:
     mask = (x - pos_x)**2 + (y - pos_y)**2 <= radius**2
 
     return x, y, mask
+
+
+
+
+
+def smooth_grid(grid: np.array, gray_level: int, sigma: float) -> np.array:
+
+    #generate a smoothed image
+    smoothed_grid = gaussian_filter((gray_level-1)*grid, sigma=sigma)
+
+    return smoothed_grid

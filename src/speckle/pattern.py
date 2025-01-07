@@ -1,6 +1,7 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy import ndimage
-from speckle.grid import create_flattened_grid, random_shift_grid, circle_mask
+from speckle.grid import create_flattened_grid, random_shift_grid, circle_mask, smooth_grid
 
 class Pattern:
     """
@@ -32,14 +33,16 @@ class Pattern:
             average radius, minimum and maximum radius, and average shifts in both x and y directions.
     """
 
-    def __init__(self, image_width: int=512, image_height: int=512, mean_radius: int=4, spacing: int=10, variability: float=0.6, stddev: float=1.0, seed: int=None):
+    def __init__(self, image_width: int=512, image_height: int=512, mean_radius: int=4, spacing: int=10, variability: float=0.6, stddev_size: float=1.0, seed: int=None, gray_level: int=256, stddev_smooth: float=0.5):
         self.seed = seed  
         self.image_height = image_height
         self.image_width = image_width
         self.mean_radius = mean_radius
         self.var = variability
-        self.stddev = stddev
+        self.stddev_size = stddev_size
         self.spacing = spacing
+        self.gray_level = gray_level
+        self.stddev_smooth = stddev_smooth
         self.radii = np.zeros((image_width,image_height), dtype=int)
         self.grid_x = np.zeros((image_width,image_height), dtype=int)
         self.grid_y = np.zeros((image_width,image_height), dtype=int)
@@ -78,13 +81,17 @@ class Pattern:
 
 
         # pull speckle size from a normal distribution with user defined mean size and standard deviation.
-        self.radii = np.random.normal(self.mean_radius, self.stddev, nspeckles).astype(int)
+        self.radii = np.random.normal(self.mean_radius, self.stddev_size, nspeckles).astype(int)
 
 
         # loop over all grid points and create a circle mask. Mask then applied to pattern array.
         for ii in range(0, nspeckles):
             x,y,mask = circle_mask(self.grid_x[ii], self.grid_y[ii], self.radii[ii], self.image_width, self.image_height)
             self.pattern[x[mask], y[mask]] = 1
+
+
+        # apply some kind of gaussian smoothing.
+        self.pattern = smooth_grid(self.pattern, self.gray_level, self.stddev_smooth)
 
         return self.pattern
 
@@ -106,7 +113,23 @@ class Pattern:
         return rotated_pattern
 
 
+    def levels_histogram(self) -> None:
+        """
+        Count the number of occurrences of each gray value in a grayscale image array and plot it as a histogram
+        """
 
+        # Count occurrences of each gray value
+        unique_values, counts = np.unique(self.pattern, return_counts=True)
+
+        # Plot histogram
+        plt.figure(figsize=(8, 5))
+        plt.bar(unique_values, counts, width=1.0, color='gray', edgecolor='black')
+        plt.title('Histogram of Gray Levels')
+        plt.xlabel('Gray Level (0-255)')
+        plt.ylabel('Count')
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.show()
+        
 
 
     def statistics(self) -> None:
@@ -120,14 +143,14 @@ class Pattern:
             None: Prints mean pixel value and speckle size information to stdout
         """
         
-        pattern_density = np.average(self.pattern) * 100  # Convert to percentage
+        pattern_density = np.average(self.pattern)  # Convert to percentage
         
         # Calculate average, min, and max radius
         radius_avg = np.average(self.radii)
         radius_min = np.min(self.radii)
         radius_max = np.max(self.radii)
 
-        print(f"{'Mean Pixel Value of Entire Pattern:':45}" +  f"{pattern_density:.2f}" + " [%]")
+        print(f"{'Mean Gray Value of Entire Pattern:':45}" +  f"{pattern_density:.2f}" + " [gray level]")
         print(f"{'Average Speckle Radius:':45}" + f"{radius_avg:.2f}" + " [pixels]" )
         print(f"{'Min Speckle Radius:':45}" + f"{radius_min}" + " [pixels]" )
         print(f"{'Max Speckle Radius:':45}" + f"{radius_max}" + " [pixels]" )

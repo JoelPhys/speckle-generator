@@ -4,8 +4,9 @@ import PIL
 
 class Image:
 
-    def __init__(self,pattern: np.array):
+    def __init__(self,pattern: np.array, gray_level: int=256):
         self.pattern = pattern
+        self.gray_level = gray_level
 
 
 
@@ -38,13 +39,13 @@ class Image:
         """
 
         if invert:
-            self.pattern = 1 - self.pattern
+            self.pattern = self.gray_level - 1 - self.pattern
 
         return None
 
 
 
-    def show(self, vmin: float = 0.0, vmax: float = 1.0) -> None:
+    def show(self) -> None:
         """
         Displays the current pattern as an image using Matplotlib.
 
@@ -54,7 +55,8 @@ class Image:
         plt.figure()
         plt.xlabel('Pixels')
         plt.ylabel('Pixels')
-        plt.imshow(self.pattern,cmap='gray', vmin=vmin, vmax=vmax)
+        plt.imshow(self.pattern,cmap='gray', vmin=0.0, vmax=self.gray_level-1)
+        plt.colorbar()
         plt.show()
 
         return None
@@ -79,7 +81,11 @@ class Image:
         if format_upper not in allowed_formats:
             raise ValueError(f"Invalid format '{format}'. Allowed formats are: {', '.join(allowed_formats)}")
 
-        image = PIL.Image.fromarray((self.pattern * 255).astype(np.uint8))
+
+        # convert to 256 when saving.
+        convertion_factor = 255 / (self.gray_level - 1) 
+
+        image = PIL.Image.fromarray((self.pattern * convertion_factor).astype(np.uint8))
         dpi = (resolution, resolution)
         image.save(filename, format=format, dpi=dpi)
 
