@@ -15,7 +15,8 @@ dependencies = [
     "numpy",
     "matplotlib",
     "scipy",
-    "pyqt5"
+    "pyqt5",
+    "opencv-python"
 ]
 
 
