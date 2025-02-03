@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import cv2
 from scipy import interpolate
 from icecream import ic
+from scipy.optimize import least_squares
+from scipy.signal import correlate2d
+from numba import jit
 
 
 class Correlation:
@@ -20,8 +23,6 @@ class Correlation:
     def ssd(self, reference_subset, deformed_subset) -> float:
         ssd_value = np.sum((reference_subset - deformed_subset) ** 2)
         return ssd_value
-    
-
 
     def nssd(reference_subset, deformed_subset) -> float:
 
@@ -36,7 +37,7 @@ class Correlation:
         nssd_value = np.sum((normed_ref - normed_def) ** 2)
 
         return nssd_value
-    
+
     def znssd(reference_subset, deformed_subset) -> float:
 
         mean_ref = np.mean(reference_subset)
@@ -50,13 +51,12 @@ class Correlation:
         return znssd_value
 
 
-    def subsets(self, x: int, y: int, u: int, v: int) -> tuple[np.ndarray, np.ndarray]:
+    def subset(self, image: np.ndarray, x: int, y: int) -> np.ndarray:
         """
         Parameters:
-        x (int): x-coord of subset center in reference image
-        y (int): y-coord of subset center in reference image
-        u (int): x-coord of subset centre in deformed image
-        v (int): y-coord of subset centre in deformed image
+        x (int): x-coord of subset center in image
+        y (int): y-coord of subset center in image
+
         """
 
         half_size = self.subset_size // 2
@@ -65,25 +65,21 @@ class Correlation:
         x1, x2 = x - half_size, x + half_size + 1
         y1, y2 = y - half_size, y + half_size + 1
 
-        # deformed subset
-        x1_def, x2_def = u - half_size, u + half_size + 1
-        y1_def, y2_def = v - half_size, v + half_size + 1
-
-        # print(x1,x2,y1,y2,x1_def,x2_def,y1_def,y2_def)
-
         # Ensure indices are within bounds
-        if (x1 < 0 or y1 < 0 or x2 > self.image_ref.shape[1] or y2 > self.image_ref.shape[0] or
-            x1_def < 0 or y1_def < 0 or x2_def > self.image_def.shape[1] or y2_def > self.image_def.shape[0]):
-            raise ValueError("Subset exceeds image boundaries.")
-
-        # Extract subsets
-        subset_ref = self.image_ref[y1:y2, x1:x2]
-        subset_def = self.image_def[y1_def:y2_def, x1_def:x2_def]
-
-        return subset_ref, subset_def
+        if (x1 < 0 or y1 < 0 or x2 > self.image_ref.shape[1] or y2 > self.image_ref.shape[0]):
+            raise ValueError(f"Subset exceeds image boundaries.\nSubset Pixel Range:\n"
+                            f"x1: {x1}\n"
+                            f"x2: {x2}\n"
+                            f"y1: {y1}\n"
+                            f"y2: {y2}")
     
+        # Extract subsets
+        subset = image[y1:y2, x1:x2]
 
-    def perform_interpolation(self, interp_x: int, interp_y: int, kind: str) -> None:
+        return subset
+
+
+    def perform_interpolation(self, interp_x: int, interp_y: int, kind: str) -> tuple[np.ndarray, np.ndarray]:
         """
         Parameters:
         interp_x (int): number of interpolations between each pixel along x axis
@@ -108,13 +104,125 @@ class Correlation:
         interped_vals_def = interpolator_def(new_points)
 
 
-        vals = interped_vals_ref.reshape(len(y_mesh), len(x_mesh))
-        self.image_def = interped_vals_def.reshape(len(y_mesh), len(x_mesh))
+        interped_image_ref = interped_vals_ref.reshape(len(y_mesh), len(x_mesh))
+        interped_image_def = interped_vals_def.reshape(len(y_mesh), len(x_mesh))
 
-        plt.figure()
-        plt.scatter(x_vals,vals[0,:])
-        plt.scatter(x,self.image_ref[0,:])
-        plt.show()
+        # plt.figure()
+        # plt.scatter(x_vals,vals[0,:])
+        # plt.scatter(x,self.image_ref[0,:])
+        # plt.show()
 
-        ic(self.image_ref.shape)
+        return interped_image_ref, interped_image_def
+    
+
+    @jit
+    def global_search_loops(ref_subset, image_def) -> tuple[int,int,float]:
+
+        subset_size = ref_subset.shape[0]
+        min_x = subset_size // 2
+        min_y = subset_size // 2
+        max_x = image_def.shape[0] - subset_size // 2
+        max_y = image_def.shape[1] - subset_size // 2
+
+
+        # Loop over a grid of positions to create multiple residuals
+        ssd_final = float('inf')
+        for u in range(min_x, max_x):
+            for v in range(min_y, max_y):
+
+                def_subset = self.subset(self.image_def, u, v)
+                ssd_temp = self.ssd(ref_subset,def_subset)
+                if ssd_temp < ssd_final:
+                    ssd_final = ssd_temp
+                    u_final = u
+                    v_final = v
+
+                if ssd_final == 0.0:
+                    break
+
+
+        return u_final,v_final,ssd_final
+                    
+
+
+    def global_search_scipy(self, ref_subset, image_def) -> tuple[int, int, float]:
+
+        subset_size = ref_subset.shape[0]
+        
+        # use scipy.signal
+        ref_squared = np.sum(ref_subset ** 2)
+        corr = correlate2d(image_def, ref_subset, mode="valid", boundary="fill", fillvalue=0)
+
+        ssd_map = ref_squared - 2 * corr
+
+        # debugging
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(1, 2, 1)
+        # plt.title("Original Image")
+        # plt.imshow(ssd_map, cmap="gray")
+        # plt.show()
+
+        v_final, u_final = np.unravel_index(np.argmin(ssd_map), ssd_map.shape)
+        
+        return u_final, v_final, np.min(ssd_map)
+
+    # def cost_function(self, displacement, subset_ref, image_def):
+
+
+    #     x_disp = int(round(displacement[0]))  # Round to nearest integer
+    #     y_disp = int(round(displacement[1]))  # Round to nearest integer
+        
+    #     subset_size = subset_ref.shape[0]
+    #     min_x = subset_size // 2
+    #     min_y = subset_size // 2
+    #     max_x = image_def.shape[0] - subset_size // 2 - 1
+    #     max_y = image_def.shape[1] - subset_size // 2 - 1
+    #     print(max_x,ma
+
+    #     residuals = []
+    #     print(displacement)
+
+    #     # Loop over a grid of positions to create multiple residuals
+    #     for x in range(min_x, max_x):
+    #         for y in range(min_y, max_y):
+    #             # Apply displacement to the subset (rounding to integers)
+    #             x_disp = int(round(x + displacement[0]))
+    #             y_disp = int(round(y + displacement[1]))
+
+    #             # Ensure displacement is within bounds
+    #             if x_disp < 0 or x_disp >= image_def.shape[1] or y_disp < 0 or y_disp >= image_def.shape[0]:
+    #                 continue  # Skip out-of-bounds subsets
+
+    #             # Extract deformed subset
+    #             subset_def = self.subset(image_def, x_disp, y_disp)
+                
+    #             # Compute SSD residual for this subset
+    #             residual = self.ssd(subset_ref, subset_def)
+    #             residuals.append(residual)
+
+        
+    #     residuals.append(residual)
+
+    #     return np.array([residual])     
+
+
+    # def levenberg_marquardt(self, subset_ref: np.ndarray, image_def: np.ndarray):
+
+    #     initial_displacement = (100,100)
+    #     result = least_squares(
+    #         fun=self.cost_function,
+    #         x0=initial_displacement,  # initial guess of displacement
+    #         diff_step=1,
+    #         args=(subset_ref, image_def),  # args: (reference, deformed, window_size, method)
+    #         method='lm'  # Use Levenberg-Marquardt
+    #     )
+
+    #     # Extract the final displacement
+    #     optimized_displacement = result.x
+    #     print(optimized_displacement)
+    #     return optimized_displacement
+
+
+
+
 
