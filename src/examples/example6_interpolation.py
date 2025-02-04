@@ -13,14 +13,10 @@ height = 512
 pattern = speckle.Pattern(image_width=width,image_height=height, mean_radius=3, spacing=8, variability=0.6,stddev_size=0.4,gray_level=256,stddev_smooth=1.0,seed=100)
 speckle_pattern = pattern.generate()
 
-deformed_pattern = speckle_pattern.copy()
-subset_size = 21
-correlation = speckle.Correlation(image_ref=speckle_pattern, image_def=deformed_pattern,subset_size=subset_size)
-
-linear_ref,  linear_def = correlation.perform_interpolation(4,4,'linear')
-slinear_ref, slinear_def = correlation.perform_interpolation(4,4,'slinear')
-cubic_ref, cubic_def = correlation.perform_interpolation(4,4,'cubic')
-quintic_ref, quintic_def = correlation.perform_interpolation(4,4,'quintic')
+linear_ref = speckle.perform_interpolation(speckle_pattern,4,4,'linear')
+slinear_ref = speckle.perform_interpolation(speckle_pattern,4,4,'slinear')
+cubic_ref = speckle.perform_interpolation(speckle_pattern,4,4,'cubic')
+quintic_ref = speckle.perform_interpolation(speckle_pattern,4,4,'quintic')
 
 
 

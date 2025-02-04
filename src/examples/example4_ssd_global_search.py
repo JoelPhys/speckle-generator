@@ -28,19 +28,31 @@ deformed_img.show()
 
 
 subset_size = 51
-correlation = speckle.Correlation(image_ref=speckle_pattern, image_def=deformed_pattern,subset_size=subset_size)
 min_x = subset_size // 2
 min_y = subset_size // 2
 max_x = speckle_pattern.shape[0] - subset_size // 2
 max_y = speckle_pattern.shape[1] - subset_size // 2
 
 
-# correlation.perform_interpolation(4,4,'linear')
+#specify local subset
+ref_subset = speckle.subset(speckle_pattern, 75, 75, subset_size)
 
-ref_subset = correlation.subset(speckle_pattern, 75, 75)
-u,v,ssd = correlation.global_search_loops(ref_subset, deformed_pattern)
-print(u,v,ssd)
+# generate correlation map
+ssd_map = speckle.correlation_global_map(ref_subset, deformed_pattern)
 
+
+#plot the correlation map
+plt.figure()
+plt.pcolor(ssd_map)
+plt.xlabel("u")
+plt.ylabel("v")
+plt.show()
+
+
+u,v,ssd = speckle.correlation_global_find_min(ssd_map)
+print("u:",u)
+print("v:",v)
+print("ssd:",ssd)
 
 
 

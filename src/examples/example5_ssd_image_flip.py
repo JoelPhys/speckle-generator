@@ -33,7 +33,6 @@ deformed_img.show()
 
 # ---------------------------------------------------------------------------
 # define our correlation object. Specify our initial, and deformated images as well as subset size.
-correlation = speckle.Correlation(image_ref=speckle_pattern, image_def=deformed_pattern,subset_size=subset_size)
 min_x = subset_size // 2
 min_y = subset_size // 2
 max_x = speckle_pattern.shape[0] - subset_size // 2
@@ -52,8 +51,9 @@ step = subset_size
 for x in range(min_x,max_x,step):
     for y in range(min_y,max_y,step):
 
-        ref_subset = correlation.subset(speckle_pattern, x, y)
-        u,v,ssd = correlation.global_search_loops(ref_subset, deformed_pattern)
+        ref_subset = speckle.subset(speckle_pattern, x, y, subset_size)
+        ssd_map = speckle.correlation_global_map(ref_subset, deformed_pattern)
+        u,v,ssd = speckle.correlation_global_find_min(ssd_map)
         print(x,y,u,v,ssd)
         x_arr.append(x)
         y_arr.append(y)
