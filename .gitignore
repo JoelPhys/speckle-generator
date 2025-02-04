@@ -4,3 +4,4 @@ src/speckle.egg-info
 build/*
 literature/*
 *.tiff
+__pycache__/

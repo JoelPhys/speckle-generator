@@ -1,12 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import cv2
+import cv2 as cv
 from scipy import interpolate
 from icecream import ic
 from scipy.optimize import least_squares
 from scipy.signal import correlate2d
+from scipy.interpolate import RegularGridInterpolator
 from numba import jit
-
 
 def pattern_gradient(subset):
     """Image gradients using sobel."""
@@ -118,7 +118,6 @@ def correlation_global_map(ref_subset: np.ndarray, image_def: np.ndarray) -> np.
     ssd_map = np.zeros((max_x-min_x, max_y-min_y))
 
     # Loop over a grid of positions to create multiple residuals
-    ssd_final = float('inf')
     for u in range(min_x, max_x):
         for v in range(min_y, max_y):
 
@@ -126,7 +125,7 @@ def correlation_global_map(ref_subset: np.ndarray, image_def: np.ndarray) -> np.
             j = v - min_y
 
             def_subset = subset(image_def, u, v, subset_size)
-            ssd_map[i,j] = ssd(ref_subset,def_subset)
+            ssd_map[j,i] = ssd(ref_subset,def_subset)
 
 
     return ssd_map
@@ -145,12 +144,35 @@ def correlation_global_find_min(ssd_map: np.ndarray) -> tuple[int,int,float]:
 
 
 
+def correlation_global_map_opencv(ref_subset: np.ndarray, image_def: np.ndarray) -> tuple[int,int, float, np.ndarray]:
+
+
+    #need to convert to float32 for opencv
+    subset = ref_subset.astype(np.float32)
+    deformed_image = image_def.astype(np.float32)
+
+    subset_size = ref_subset.shape[0]
+    min_x = subset_size // 2
+    min_y = subset_size // 2
+    max_x = image_def.shape[0] - subset_size // 2
+    max_y = image_def.shape[1] - subset_size // 2
+    ssd_map = np.zeros((max_x-min_x, max_y-min_y))
+
+    
+    method = cv.TM_SQDIFF
+    res = cv.matchTemplate(deformed_image,subset,method)
+    min_val, max_val, min_loc, max_loc = cv.minMaxLoc(res)
+    
+    return min_loc[0], min_loc[1], min_val, res
+
+
+
 
 def global_search_scipy(ref_subset, image_def) -> tuple[int, int, float]:
 
     subset_size = ref_subset.shape[0]
 
-    # use scipy.signal
+   # use scipy.signal
     ref_squared = np.sum(ref_subset ** 2)
     corr = correlate2d(image_def, ref_subset, mode="valid", boundary="fill", fillvalue=0)
 

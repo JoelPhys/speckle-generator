@@ -1,10 +1,11 @@
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+import time
 
 import speckle
 
 # Generate a Speckle pattern and print some basic statitics.
-subset_size = 21
+subset_size = 31
 width = subset_size * 10
 height= subset_size * 10
 
@@ -39,27 +40,56 @@ max_x = speckle_pattern.shape[0] - subset_size // 2
 max_y = speckle_pattern.shape[1] - subset_size // 2
 
 
-x_arr = []
-y_arr = []
-u_arr = []
-v_arr = []
 
 # ---------------------------------------------------------------------------
 # Loop over all our reference subsets and calculate the with a step size specified below
 # find the minimum value in the ssd using a global search of all deformed subsets.
+
 step = subset_size
+
+# manual loop over deformed subsets
+x_arr = y_arr = u_arr = v_arr = []
+time_start_setup = time.perf_counter()
+
 for x in range(min_x,max_x,step):
     for y in range(min_y,max_y,step):
 
         ref_subset = speckle.subset(speckle_pattern, x, y, subset_size)
         ssd_map = speckle.correlation_global_map(ref_subset, deformed_pattern)
         u,v,ssd = speckle.correlation_global_find_min(ssd_map)
-        print(x,y,u,v,ssd)
         x_arr.append(x)
         y_arr.append(y)
         u_arr.append(u-x)
         v_arr.append(v-y)
-        
+
+time_end_loop = time.perf_counter()
+duration1= time_end_loop - time_start_setup
+
+
+# ssd calculation using opencv matchTemplate
+x_arr = []
+y_arr = []
+u_arr = []
+v_arr = []
+time_start_setup = time.perf_counter()
+
+for x in range(min_x,max_x,step):
+    for y in range(min_y,max_y,step):
+
+        ref_subset = speckle.subset(speckle_pattern, x, y, subset_size)
+        u,v,ssd,ssd_map = speckle.correlation_global_map_opencv(ref_subset, deformed_pattern)
+        x_arr.append(x)
+        y_arr.append(y)
+        u_arr.append(u-x+min_x)
+        v_arr.append(v-y+min_y)
+
+time_end_loop = time.perf_counter()
+duration2= time_end_loop - time_start_setup
+
+print("Time taken for OpenCV SSD Correlation:", duration1, "[s]")
+print("Time taken for manual SSD Correlation:", duration2, "[s]")
+
+
 
 
 # Creating plot
