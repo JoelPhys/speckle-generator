@@ -39,7 +39,7 @@ ref_subset = speckle.subset(speckle_pattern, 75, 75, subset_size)
 
 # generate correlation map
 time_start_setup = time.perf_counter()
-ssd_opencv = speckle.correlation_global_map_opencv(ref_subset, deformed_pattern)
+u,v,ssd,ssd_opencv = speckle.correlation_global_map_opencv(ref_subset, deformed_pattern,"ssd")
 time_end_loop = time.perf_counter()
 duration1 = time_end_loop - time_start_setup
 
@@ -59,7 +59,7 @@ plt.imshow(ssd_opencv)
 plt.colorbar()
 plt.xlabel("u")
 plt.ylabel("v")
-plt.title("SSD OpenCV"
+plt.title("SSD OpenCV")
 plt.subplot(1, 3, 2)
 plt.imshow(ssd_manual)
 plt.colorbar()

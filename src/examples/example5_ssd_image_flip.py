@@ -77,7 +77,7 @@ for x in range(min_x,max_x,step):
     for y in range(min_y,max_y,step):
 
         ref_subset = speckle.subset(speckle_pattern, x, y, subset_size)
-        u,v,ssd,ssd_map = speckle.correlation_global_map_opencv(ref_subset, deformed_pattern)
+        u,v,ssd,ssd_map = speckle.correlation_global_map_opencv(ref_subset, deformed_pattern,"ssd")
         x_arr.append(x)
         y_arr.append(y)
         u_arr.append(u-x+min_x)
