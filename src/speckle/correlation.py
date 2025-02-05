@@ -1,11 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2 as cv
-from scipy import interpolate
-from icecream import ic
-from scipy.optimize import least_squares
 from scipy.signal import correlate2d
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator, RectBivariateSpline
 from numba import jit
 
 def pattern_gradient(subset):
@@ -77,10 +74,15 @@ def subset( image: np.ndarray, x: int, y: int, subset_size: int) -> np.ndarray:
 
 def perform_interpolation(image: np.ndarray, interp_x: int, interp_y: int, kind: str) -> np.ndarray:
     """
+    Interpolatation using scipy.interpolate.RegularGridInterpolator
+
     Parameters:
     interp_x (int): number of interpolations between each pixel along x axis
     interp_y (int): number of interpolations between each pixel along y axis
     kind     (str): Type of interpolation. Supported values are linear", "nearest", "slinear", "cubic", "quintic" and "pchip".
+
+    Returns: 
+    np.ndarray: Interpolated image.
     """
 
     dims_ref = image.shape
@@ -107,9 +109,40 @@ def perform_interpolation(image: np.ndarray, interp_x: int, interp_y: int, kind:
 
     return interped_image
 
-def correlation_global_map(ref_subset: np.ndarray, image_def: np.ndarray) -> np.ndarray:
+def spline_interpolation(image: np.ndarray, interp_x: int, interp_y: int, degree: int=3) -> np.ndarray:
+    """
+    Interpolation using RectBivariateSpline.
+    
+    Parameters:
+    image (np.ndarray): Input 2D image array.
+    interp_x (int): Number of interpolations between each pixel along the x-axis.
+    interp_y (int): Number of interpolations between each pixel along the y-axis.
+    degree (int): degree of polynomial. Default is 3
+    
+    Returns:
+    np.ndarray: Interpolated image.
+    """
+    dims_ref = image.shape
+    
+    x = np.arange(dims_ref[1])  # Original x-coordinates
+    y = np.arange(dims_ref[0])  # Original y-coordinates
+    
+    # Create the spline interpolator
+    interpolator = RectBivariateSpline(y, x, image, kx=3, ky=3)  # Cubic spline by default
+    
+    # New grid for interpolation
+    x_vals = np.linspace(0, dims_ref[1] - 1, (dims_ref[1] - 1) * interp_x + 1)
+    y_vals = np.linspace(0, dims_ref[0] - 1, (dims_ref[0] - 1) * interp_y + 1)
+    
+    # Perform interpolation
+    interped_image = interpolator(y_vals, x_vals)
+    
+    return interped_image
 
-    subset_size = ref_subset.shape[0]
+
+def correlation_global_search(ref_subset: np.ndarray, image_def: np.ndarray) -> np.ndarray:
+
+    subset_size = ref_subset.shape[0] * 4
     min_x = subset_size // 2
     min_y = subset_size // 2
     max_x = image_def.shape[0] - subset_size // 2
@@ -133,7 +166,7 @@ def correlation_global_map(ref_subset: np.ndarray, image_def: np.ndarray) -> np.
 
 
 
-def correlation_global_find_min(ssd_map: np.ndarray) -> tuple[int,int,float]:
+def global_find_min(ssd_map: np.ndarray) -> tuple[int,int,float]:
 
     ssd_min = np.min(ssd_map)
     indices = np.unravel_index(np.argmin(ssd_map), ssd_map.shape)
@@ -144,26 +177,28 @@ def correlation_global_find_min(ssd_map: np.ndarray) -> tuple[int,int,float]:
 
 
 
-def correlation_global_map_opencv(ref_subset: np.ndarray, image_def: np.ndarray) -> tuple[int,int, float, np.ndarray]:
+def global_search_opencv(ref_subset: np.ndarray, image_def: np.ndarray, method: str) -> tuple[float,float, float, np.ndarray]:
 
+    if method == "ssd":
+        method = getattr(cv,"TM_SQDIFF")
+    elif method == "nssd":
+        method = getattr(cv,"TM_SQDIFF_NORMED")
+    elif method == "zncc":
+        method = getattr(cv,"TM_CCOEFF_NORMED")
+    #elif method = "znssd":
+    #    method = getattr(cv,"TM_SQDIFF")
+    else:
+        raise ValueError("Unknown correlation function:" + method)
 
     #need to convert to float32 for opencv
     subset = ref_subset.astype(np.float32)
     deformed_image = image_def.astype(np.float32)
 
-    subset_size = ref_subset.shape[0]
-    min_x = subset_size // 2
-    min_y = subset_size // 2
-    max_x = image_def.shape[0] - subset_size // 2
-    max_y = image_def.shape[1] - subset_size // 2
-    ssd_map = np.zeros((max_x-min_x, max_y-min_y))
-
-    
     method = cv.TM_SQDIFF
-    res = cv.matchTemplate(deformed_image,subset,method)
-    min_val, max_val, min_loc, max_loc = cv.minMaxLoc(res)
+    correlation_map = cv.matchTemplate(deformed_image,subset,method)
+    min_val, max_val, min_loc, max_loc = cv.minMaxLoc(correlation_map)
     
-    return min_loc[0], min_loc[1], min_val, res
+    return min_loc[0], min_loc[1], min_val, correlation_map
 
 
 
