@@ -18,6 +18,15 @@ ref_centre_x = subset_size // 2 + subset_size-1
 ref_centre_y = subset_size // 2 + subset_size-1
 step=10
 
+# Plot results
+plt.figure(figsize=(10, 5))
+plt.subplot(1, 2, 1)
+plt.title("Original Image")
+plt.imshow(speckle_pattern, cmap="gray")
+plt.subplot(1, 2, 2)
+plt.title("Wave Distorted Image")
+plt.imshow(deformed_pattern, cmap="gray")
+plt.show()
 
 subset_size = 21
 min_x = subset_size // 2
@@ -76,6 +85,7 @@ plt.imshow(deformed_pattern, cmap="gray")
 plt.subplot(1, 3, 3)
 plt.title("Displacement, u")
 plt.imshow(u_arr, cmap="gray", vmin=-10, vmax=10)
+plt.colorbar()
 plt.show()
 
 
