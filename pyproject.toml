@@ -17,6 +17,10 @@ dependencies = [
     "scipy",
     "pyqt5",
     "opencv-python"
+    "tqdm",
+    "time",
+    "icecream",
+    "numba"
 ]
 
 

@@ -12,10 +12,11 @@ def pattern_gradient(subset):
     return grad_x, grad_y
 
 @jit(nopython=True)
-def ssd(reference_subset, deformed_subset) -> float:
+def ssd(reference_subset: np.ndarray, deformed_subset: np.ndarray) -> float:
     ssd_value = np.sum((reference_subset - deformed_subset) ** 2)
     return ssd_value
 
+@jit(nopython=True)
 def nssd(reference_subset, deformed_subset) -> float:
 
     mean_ref = np.mean(reference_subset)
@@ -30,6 +31,7 @@ def nssd(reference_subset, deformed_subset) -> float:
 
     return nssd_value
 
+@jit(nopython=True)
 def znssd(reference_subset, deformed_subset) -> float:
 
     mean_ref = np.mean(reference_subset)
@@ -109,7 +111,31 @@ def perform_interpolation(image: np.ndarray, interp_x: int, interp_y: int, kind:
 
     return interped_image
 
-def spline_interpolation(image: np.ndarray, interp_x: int, interp_y: int, degree: int=3) -> np.ndarray:
+def spline_interpolation_object(image: np.ndarray, interp_x: int, interp_y: int, degree: int=3) -> np.ndarray:
+    """
+    Interpolation using RectBivariateSpline.
+    
+    Parameters:
+    image (np.ndarray): Input 2D image array.
+    interp_x (int): Number of interpolations between each pixel along the x-axis.
+    interp_y (int): Number of interpolations between each pixel along the y-axis.
+    degree (int): degree of polynomial. Default is 3
+    
+    Returns:
+    np.ndarray: Interpolated image.
+    """
+    dims_ref = image.shape
+    
+    x = np.arange(dims_ref[1])  # Original x-coordinates
+    y = np.arange(dims_ref[0])  # Original y-coordinates
+    
+    # Create the spline interpolator
+    interpolator = RectBivariateSpline(y, x, image, kx=3, ky=3)  # Cubic spline by default
+    
+    return interpolator
+
+
+def spline_interpolation_image(image: np.ndarray, interp_x: int, interp_y: int, degree: int=3) -> np.ndarray:
     """
     Interpolation using RectBivariateSpline.
     
