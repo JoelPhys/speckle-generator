@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
-from speckle.grid import create_flattened_grid, random_shift_grid, circle_mask, smooth_grid
+from .grid import create_flattened_grid, random_shift_grid, circle_mask, smooth_grid
 
 class Pattern:
     """

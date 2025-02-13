@@ -166,7 +166,7 @@ def spline_interpolation_image(image: np.ndarray, interp_x: int, interp_y: int, 
     return interped_image
 
 
-def correlation_global_search(ref_subset: np.ndarray, image_def: np.ndarray) -> np.ndarray:
+def global_search(ref_subset: np.ndarray, image_def: np.ndarray) -> np.ndarray:
 
     subset_size = ref_subset.shape[0] * 4
     min_x = subset_size // 2

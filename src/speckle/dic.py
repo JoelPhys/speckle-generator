@@ -6,86 +6,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from icecream import ic
 from numba import jit
+from scipy.optimize import minimize
 
+from . import correlation
 
-from speckle import correlation
-
-
-def dic_global_spline_interpolation(reference_image: np.ndarray,
-                                    deformed_image: np.ndarray,
-                                    subset_size: int,
-                                    subset_step: int,
-                                    interpolation: int,
-                                    corr_crit: str) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Calculates pixel displacements between a reference and deformed image.
-    Interpolation is performed globally on reference and deformed image.
-    Uses a global grid search to find interpolated reference subset in interpolated deformed image.
-
-    Parameters:
-    reference_image     (np.ndarray): Reference Image
-    deformed_image      (np.ndarray): Deformed Image
-    subset_size         (int): Size of local subsets in pixels 
-    subset_step         (int): subset step size in pixels
-    roi_radius          (int): Radius of the square of interest around correlation minimum
-    interpolation       (int): Number of points between each pixel
-    corr_crit           (str): The correlation criterion that will be used. Options are "ssd","nssd","zncc".
-
-    Returns: 
-    u   (np.ndarray): Pixel displacement in x direction for each reference subset
-    v   (np.ndarray): Pixel displacement in y direction for each reference subset
-    """
-
-    time_start = time.perf_counter()
-
-    # perform interpolation of entire reference and deformed image
-    reference_image_interp = correlation.spline_interpolation_image(reference_image, interpolation, interpolation, 3)
-    deformed_image_interp = correlation.spline_interpolation_image(deformed_image, interpolation, interpolation, 3)
-
-
-    step = subset_step * interpolation # subpx
-    subset_size = 21 * interpolation #subpx
-
-    min_x = subset_size // 2
-    min_y = subset_size // 2
-    max_x = reference_image_interp.shape[0] - subset_size // 2
-    max_y = reference_image_interp.shape[1] - subset_size // 2
-
-    # dont use subsets if rows/cols < 10
-    edge_cutoff = 10 * interpolation
-
-    x_values = np.arange(min_x+edge_cutoff, max_x-edge_cutoff, step)
-    y_values = np.arange(min_y+edge_cutoff, max_y-edge_cutoff, step)
-    shape = (len(y_values), len(x_values)) 
-
-    total_iterations = x_values.shape[0] * y_values.shape[0]
-
-    # Initialize 2D arrays
-    u_arr = np.zeros(shape)
-    v_arr = np.zeros(shape)
-
-    progress_bar = tqdm(total=total_iterations, desc=f"{'Global DIC Progress:':45}",position=0)
-
-    for i, x in enumerate(x_values):
-        for j, y in enumerate(y_values):
-
-            ref_subset = correlation.subset(reference_image_interp, x, y, subset_size)
-            u, v, ssd, ssd_map = correlation.global_search_opencv(ref_subset, deformed_image_interp, corr_crit)
-
-
-            u_arr[j,i] = (u - float(x) + float(min_x))/float(interpolation)
-            v_arr[j,i] = (v - float(y) + float(min_y))/float(interpolation)
-
-            # Update progress
-            progress_bar.update(1)
-
-    return u_arr, v_arr
-
-
-
-
-
-def dic_reference_image_interpolation(reference_image: np.ndarray,
+def reference_image_interpolation_roi_gridsearch(reference_image: np.ndarray,
                                       deformed_image: np.ndarray,
                                       subset_size: int,
                                       subset_step: int,
@@ -119,9 +44,7 @@ def dic_reference_image_interpolation(reference_image: np.ndarray,
     u_arr = np.zeros(shape)
     v_arr = np.zeros(shape)
 
-    progress_bar = tqdm(total=total_iterations, desc=f"{'Local DIC Progress:':45}",position=0)
-
-
+    progress_bar = tqdm(total=total_iterations, desc=f"{'Searching for deformed subsets in the interpolated reference image using a grid search within user specified search radius':150}",position=0)
 
     # looping over the subsets
     for i, x in enumerate(x_values):
@@ -137,7 +60,7 @@ def dic_reference_image_interpolation(reference_image: np.ndarray,
             roi_xmax = x + subset_search_radius
             roi_ymin = y - subset_search_radius
             roi_ymax = y + subset_search_radius
-            step = 1.0/(interpolation+1.0)
+            step = 1.0/(interpolation)
 
             u_val, v_val, ssd = subset_search_rigid_grid(subset, roi_xmin, roi_xmax, roi_ymin, roi_ymax, step, interpolator)
 
@@ -151,8 +74,75 @@ def dic_reference_image_interpolation(reference_image: np.ndarray,
 
 
 
+def reference_image_interpolation_minimizer(reference_image: np.ndarray,
+                                      deformed_image: np.ndarray,
+                                      subset_size: int,
+                                      subset_step: int,
+                                      bounds: np.ndarray,
+                                      interpolation: int,
+                                      corr_crit: str) -> tuple[np.ndarray, np.ndarray]:
+    
 
-def dic_local_correlation_interpolation(reference_image: np.ndarray,
+
+    time_start = time.perf_counter()
+
+
+    # get the interpolation of the entire reference image
+    interpolator = correlation.spline_interpolation_object(reference_image, interpolation, interpolation, 3)
+
+    min_x = subset_size // 2
+    min_y = subset_size // 2
+    max_x = reference_image.shape[0] - subset_size // 2
+    max_y = reference_image.shape[1] - subset_size // 2
+
+    # dont use subsets if rows/cols < 10
+    edge_cutoff = 10
+
+    x_values = np.arange(min_x+edge_cutoff, max_x-edge_cutoff, subset_step)
+    y_values = np.arange(min_y+edge_cutoff, max_y-edge_cutoff, subset_step)
+    shape = (len(y_values), len(x_values)) 
+
+    total_iterations = x_values.shape[0] * y_values.shape[0]
+
+    # Initialize 2D arrays
+    u_arr = np.zeros(shape)
+    v_arr = np.zeros(shape)
+
+
+    progress_bar = tqdm(total=total_iterations, desc=f"{'Searching for deformed subsets in the interpolated reference image using scipy.optimize.minimize':150}",position=0)
+
+
+
+    # looping over the subsets
+    for i, x in enumerate(x_values):
+        for j, y in enumerate(y_values):
+
+            # Take a subset from the non-interpolated deformed image and look for that in the reference Image.
+            # This is becuase we only need to perform a single interpolation on the reference subset rather
+            # than an interpolation on every deformed_image in the pipeline
+            subset = correlation.subset(deformed_image, x, y, subset_size)
+
+            # Begin minimization by assuming no translation
+            p = np.array([0.0,0.0,0.0,0.0,0.0,0.0])
+            sol = minimize(subset_search_affine_minimizer, p, args=(subset,interpolator,x,y),bounds=bounds)
+            # exit(0)
+            p = sol.x
+            ssd_val = sol.fun
+
+
+            # value is negative because its deformed subset looking searching in reference image
+            u_arr[j,i] = - (p[0])
+            v_arr[j,i] = - (p[1])
+
+            progress_bar.update(1)
+
+    return u_arr, v_arr
+
+
+
+
+
+def local_correlation_interpolation(reference_image: np.ndarray,
                                         deformed_image: np.ndarray,
                                         subset_size: int,
                                         subset_step: int,
@@ -200,13 +190,13 @@ def dic_local_correlation_interpolation(reference_image: np.ndarray,
     u_arr = np.zeros(shape)
     v_arr = np.zeros(shape)
 
-    progress_bar = tqdm(total=total_iterations, desc=f"{'Local DIC Progress:':45}",position=0)
+    progress_bar = tqdm(total=total_iterations, desc=f"{'Searching for deformed subsets GLOBALLY in the reference image. Interpolate the correlation to find subpixel shift:':150}",position=0)
 
     for i, x in enumerate(x_values):
         for j, y in enumerate(y_values):
 
-            ref_subset = correlation.subset(reference_image, x, y, subset_size)
-            u, v, ssd, ssd_map = correlation.global_search_opencv(ref_subset, deformed_image, corr_crit)
+            def_subset = correlation.subset(deformed_image, x, y, subset_size)
+            u, v, ssd, ssd_map = correlation.global_search_opencv(def_subset, reference_image, corr_crit)
 
             roi_x_min = u - correlation_roi_radius
             roi_x_max = u + correlation_roi_radius
@@ -220,8 +210,8 @@ def dic_local_correlation_interpolation(reference_image: np.ndarray,
             roi_interp = correlation.spline_interpolation_image(roi, interpolation, interpolation, 3)
             min_val, max_val, min_loc, max_loc = cv.minMaxLoc(roi_interp)
 
-            u_arr[j,i] = float(min_loc[0])/float(interpolation) - correlation_roi_radius
-            v_arr[j,i] = float(min_loc[1])/float(interpolation) - correlation_roi_radius
+            u_arr[j,i] = - float(min_loc[0])/float(interpolation) + correlation_roi_radius
+            v_arr[j,i] = - float(min_loc[1])/float(interpolation) + correlation_roi_radius
 
             progress_bar.update(1)
 
@@ -229,7 +219,13 @@ def dic_local_correlation_interpolation(reference_image: np.ndarray,
 
 
 
-def dic_global_spline_interpolation(reference_image: np.ndarray,
+
+
+
+
+
+
+def global_spline_interpolation(reference_image: np.ndarray,
                                     deformed_image: np.ndarray,
                                     subset_size: int,
                                     subset_step: int,
@@ -282,22 +278,26 @@ def dic_global_spline_interpolation(reference_image: np.ndarray,
     u_arr = np.zeros(shape)
     v_arr = np.zeros(shape)
 
-    progress_bar = tqdm(total=total_iterations, desc=f"{'Global DIC Progress:':45}",position=0)
+    progress_bar = tqdm(total=total_iterations, desc=f"{'Searching for interpolated deformed subsets GLOBALLY in interpolated reference image using openCV':150}",position=0)
 
     for i, x in enumerate(x_values):
         for j, y in enumerate(y_values):
 
-            ref_subset = correlation.subset(reference_image_interp, x, y, subset_size)
-            u, v, ssd, ssd_map = correlation.global_search_opencv(ref_subset, deformed_image_interp, corr_crit)
+            def_subset = correlation.subset(deformed_image_interp, x, y, subset_size)
+            u, v, ssd, ssd_map = correlation.global_search_opencv(def_subset, reference_image_interp, corr_crit)
+            # ic(u,v)
 
-
-            u_arr[j,i] = (u - float(x) + float(min_x))/float(interpolation)
-            v_arr[j,i] = (v - float(y) + float(min_y))/float(interpolation)
+            u_arr[j,i] = - (u - float(x) + float(min_x))/float(interpolation)
+            v_arr[j,i] = - (v - float(y) + float(min_y))/float(interpolation)
 
             # Update progress
             progress_bar.update(1)
 
     return u_arr, v_arr
+
+
+
+
 
 def subset_search_rigid_grid(subset: np.ndarray, xmin: float,xmax: float, ymin:float, ymax: float, step: int, interpolator) -> tuple[float,float,float]:
 
@@ -308,17 +308,18 @@ def subset_search_rigid_grid(subset: np.ndarray, xmin: float,xmax: float, ymin:f
     v_val = 0.0
     ssd_val = float("Inf")
 
+
     # loop over all subsets in the search area
     for subpx_x in np.arange(xmin,xmax,step):
         for subpx_y in np.arange(ymin,ymax,step):
 
             # get my 'interpolated' subset to compare against
-            xvals = np.arange(subpx_x,subpx_x+subset.shape[0],1)
-            yvals = np.arange(subpx_y,subpx_y+subset.shape[0],1)
-
+            subpx_x_max = subpx_x+subset.shape[0]-1
+            subpx_y_max = subpx_y+subset.shape[0]-1
+            xvals = np.linspace(subpx_x,subpx_x_max,subset.shape[0])
+            yvals = np.linspace(subpx_y,subpx_y_max,subset.shape[0])
             # get the interpolated values. Need to convert from subset centre coords to subset corner.
             ref_subset = interpolator(yvals - subset_size, xvals - subset_size)
-
             #calcuate the ssd for deformed subset vs interpolated reference
             ssd_temp = correlation.ssd(subset,ref_subset)
             if ssd_temp < ssd_val:
@@ -329,7 +330,12 @@ def subset_search_rigid_grid(subset: np.ndarray, xmin: float,xmax: float, ymin:f
     return u_val,v_val,ssd_val
 
 
-def subset_search_affine_minimizer(p: np.ndarray, reference_subset: np.ndarray, deformed_image: np.ndarray, interpolator, x: int ,y: int):
+
+
+
+
+
+def subset_search_affine_minimizer(p: np.ndarray, reference_subset: np.ndarray, interpolator, x: int ,y: int) -> float:
     """
     Given a reference subset and deformed image find the values of p (affine transformation) that 
     minimise the cost function (SSD,NSSD) using a levenberg-marquardt algorithm
@@ -369,15 +375,15 @@ def subset_search_affine_minimizer(p: np.ndarray, reference_subset: np.ndarray, 
 
     ssd_val = correlation.ssd(reference_subset.flatten(), interp_values)
 
-    # debugging
-    #ic(deformed_coords_x)
-    #ic(deformed_coords_y)
-    #ic(deformed_coords_x.shape)
-    #ic(reference_subset.shape)
-    #ic(p)
-    #ic(ssd_val)
+    # value debugging
+    # ic(deformed_coords_x)
+    # ic(deformed_coords_y)
+    # ic(deformed_coords_x.shape)
+    # ic(reference_subset.shape)
+    # ic(p)
+    # ic(ssd_val)
 
-    # figure debugging
+    # # figure debugging
     # fig, axes = plt.subplots(1, 3, figsize=(10, 7)) 
     # axes[0].set_title("Subset in Original Image")
     # axes[1].set_title("Deformed Image")

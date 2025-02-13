@@ -11,7 +11,7 @@ import speckle
 pattern = speckle.Pattern(image_width=1024,image_height=1024, mean_radius=3, spacing=7, variability=0.6,stddev_size=0.4,gray_level=256,stddev_smooth=1.0,seed=1)
 speckle_pattern = pattern.generate()
 
-deformed_pattern = speckle.wave_distort(speckle_pattern, amplitude=5.0, frequency=5.0, axis=0)
+deformed_pattern = speckle.correlation.wave_distort(speckle_pattern, amplitude=5.0, frequency=5.0, axis=0)
 
 subset_size = 31
 ref_centre_x = subset_size // 2 + subset_size-1
@@ -51,8 +51,8 @@ time_start_loop = time.perf_counter()
 for i, x in enumerate(x_values):
     for j, y in enumerate(y_values):
         
-        ref_subset = speckle.subset(speckle_pattern, x, y, subset_size)
-        u, v, ssd, ssd_map = speckle.correlation_global_map_opencv(ref_subset, deformed_pattern, "ssd")
+        ref_subset = speckle.correlation.subset(speckle_pattern, x, y, subset_size)
+        u, v, ssd, ssd_map = speckle.correlation.global_search_opencv(ref_subset, deformed_pattern, "ssd")
 
         u_arr[j, i] = u - x + min_x  
         v_arr[j, i] = v - y + min_y
