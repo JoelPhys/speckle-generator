@@ -111,7 +111,7 @@ def perform_interpolation(image: np.ndarray, interp_x: int, interp_y: int, kind:
 
     return interped_image
 
-def spline_interpolation_object(image: np.ndarray, interp_x: int, interp_y: int, degree: int=3) -> np.ndarray:
+def spline_interpolation_object(image: np.ndarray, degree: int=3) -> np.ndarray:
     """
     Interpolation using RectBivariateSpline.
     

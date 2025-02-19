@@ -43,10 +43,10 @@ class Pattern:
         self.spacing = spacing
         self.gray_level = gray_level
         self.stddev_smooth = stddev_smooth
-        self.radii = np.zeros((image_width,image_height), dtype=int)
-        self.grid_x = np.zeros((image_width,image_height), dtype=int)
-        self.grid_y = np.zeros((image_width,image_height), dtype=int)
-        self.pattern = np.zeros((image_width,image_height), dtype=int)
+        self.radii =   np.zeros((image_height,image_width), dtype=int)
+        self.grid_x =  np.zeros((image_height,image_width), dtype=int)
+        self.grid_y =  np.zeros((image_height,image_width), dtype=int)
+        self.pattern = np.zeros((image_height,image_width), dtype=int)
 
 
     def generate(self) -> np.array:
@@ -64,14 +64,14 @@ class Pattern:
         np.random.seed(self.seed)
 
         # speckles per row/col
-        nspeckles_x = self.image_width // self.spacing
-        nspeckles_y = self.image_height // self.spacing
+        nspeckles_x = self.image_height // self.spacing
+        nspeckles_y = self.image_width // self.spacing
 
         # total number of speckles
         nspeckles = nspeckles_x * nspeckles_y
 
         # uniformly spaced grid of speckles.
-        grid_x_uniform, grid_y_uniform = create_flattened_grid(nspeckles_x, nspeckles_y, self.image_width, self.image_height)
+        grid_x_uniform, grid_y_uniform = create_flattened_grid(nspeckles_x, nspeckles_y, self.image_height, self.image_width)
 
         # apply random shift
         low  = -self.var * self.spacing
@@ -86,7 +86,7 @@ class Pattern:
 
         # loop over all grid points and create a circle mask. Mask then applied to pattern array.
         for ii in range(0, nspeckles):
-            x,y,mask = circle_mask(self.grid_x[ii], self.grid_y[ii], self.radii[ii], self.image_width, self.image_height)
+            x,y,mask = circle_mask(self.grid_x[ii], self.grid_y[ii], self.radii[ii], self.image_height, self.image_width)
             self.pattern[x[mask], y[mask]] = 1
 
 

@@ -6,7 +6,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from icecream import ic
 from numba import jit
-from scipy.optimize import minimize
+from scipy.optimize import minimize, least_squares, leastsq, brute
 
 from . import correlation
 
@@ -28,8 +28,8 @@ def reference_image_interpolation_roi_gridsearch(reference_image: np.ndarray,
 
     min_x = subset_size // 2
     min_y = subset_size // 2
-    max_x = reference_image.shape[0] - subset_size // 2
-    max_y = reference_image.shape[1] - subset_size // 2
+    max_x = reference_image.shape[1] - subset_size // 2
+    max_y = reference_image.shape[0] - subset_size // 2
 
     # dont use subsets if rows/cols < 10
     edge_cutoff = 10
@@ -79,7 +79,6 @@ def reference_image_interpolation_minimizer(reference_image: np.ndarray,
                                       subset_size: int,
                                       subset_step: int,
                                       bounds: np.ndarray,
-                                      interpolation: int,
                                       corr_crit: str) -> tuple[np.ndarray, np.ndarray]:
     
 
@@ -88,30 +87,30 @@ def reference_image_interpolation_minimizer(reference_image: np.ndarray,
 
 
     # get the interpolation of the entire reference image
-    interpolator = correlation.spline_interpolation_object(reference_image, interpolation, interpolation, 3)
+    interpolator = correlation.spline_interpolation_object(reference_image, 3)
 
     min_x = subset_size // 2
     min_y = subset_size // 2
-    max_x = reference_image.shape[0] - subset_size // 2
-    max_y = reference_image.shape[1] - subset_size // 2
+    max_x = reference_image.shape[1] - subset_size // 2
+    max_y = reference_image.shape[0] - subset_size // 2
 
     # dont use subsets if rows/cols < 10
-    edge_cutoff = 10
+    edge_cutoff = 50
 
     x_values = np.arange(min_x+edge_cutoff, max_x-edge_cutoff, subset_step)
     y_values = np.arange(min_y+edge_cutoff, max_y-edge_cutoff, subset_step)
-    shape = (len(y_values), len(x_values)) 
+    shape = (len(y_values), len(x_values), 6) 
 
     total_iterations = x_values.shape[0] * y_values.shape[0]
 
     # Initialize 2D arrays
-    u_arr = np.zeros(shape)
-    v_arr = np.zeros(shape)
-
+    p_arr = np.zeros(shape)
+    ssd_arr = np.zeros((len(y_values), len(x_values)))
 
     progress_bar = tqdm(total=total_iterations, desc=f"{'Searching for deformed subsets in the interpolated reference image using scipy.optimize.minimize':150}",position=0)
 
 
+    p = np.array([0.0,0.0,0.0,0.0,0.0,0.0])
 
     # looping over the subsets
     for i, x in enumerate(x_values):
@@ -122,21 +121,36 @@ def reference_image_interpolation_minimizer(reference_image: np.ndarray,
             # than an interpolation on every deformed_image in the pipeline
             subset = correlation.subset(deformed_image, x, y, subset_size)
 
-            # Begin minimization by assuming no translation
-            p = np.array([0.0,0.0,0.0,0.0,0.0,0.0])
-            sol = minimize(subset_search_affine_minimizer, p, args=(subset,interpolator,x,y),bounds=bounds)
+            half_size = subset_size // 2
+
+            # reference image subset
+            x1, x2 = x - half_size, x + half_size + 1
+            y1, y2 = y - half_size, y + half_size + 1
+
+            # list of coordinates 
+            coords_x = np.arange(x1,x2,1)
+            coords_y = np.arange(y1,y2,1)
+
+            #pixel coordinates of reference subset
+            xx, yy = np.meshgrid(coords_x,coords_y)
+
+            # sol = brute(subset_search_affine_minimizer, p, args=(subset,interpolator,xx,yy),bounds=bounds)
+            sol = minimize(subset_search_affine_minimizer, p, args=(subset,interpolator,xx,yy),bounds=bounds)
+            # sol = minimize(subset_search_affine_minimizer, p, args=(subset, interpolator, x, y),bounds=bounds, method='L-BFGS-B',jac=gradient)
+            # sol = leastsq(subset_search_affine_minimizer, p, args=(subset,interpolator,x,y))
+            # sol = least_squares(subset_search_affine_minimizer, p, args=(subset,interpolator,x,y),bounds=bounds)
             # exit(0)
             p = sol.x
             ssd_val = sol.fun
 
 
             # value is negative because its deformed subset looking searching in reference image
-            u_arr[j,i] = - (p[0])
-            v_arr[j,i] = - (p[1])
+            p_arr[j,i,0:6]  = p
+            ssd_arr[j,i] = ssd_val
 
             progress_bar.update(1)
 
-    return u_arr, v_arr
+    return p_arr, ssd_arr
 
 
 
@@ -174,8 +188,8 @@ def local_correlation_interpolation(reference_image: np.ndarray,
 
     min_x = subset_size // 2
     min_y = subset_size // 2
-    max_x = reference_image.shape[0] - subset_size // 2
-    max_y = reference_image.shape[1] - subset_size // 2
+    max_x = reference_image.shape[1] - subset_size // 2
+    max_y = reference_image.shape[0] - subset_size // 2
 
     # dont use subsets if rows/cols < 10
     edge_cutoff = 10
@@ -262,8 +276,8 @@ def global_spline_interpolation(reference_image: np.ndarray,
 
     min_x = subset_size // 2
     min_y = subset_size // 2
-    max_x = reference_image_interp.shape[0] - subset_size // 2
-    max_y = reference_image_interp.shape[1] - subset_size // 2
+    max_x = reference_image_interp.shape[1] - subset_size // 2
+    max_y = reference_image_interp.shape[0] - subset_size // 2
 
     # dont use subsets if rows/cols < 10
     edge_cutoff = 10 * interpolation
@@ -335,62 +349,50 @@ def subset_search_rigid_grid(subset: np.ndarray, xmin: float,xmax: float, ymin:f
 
 
 
-def subset_search_affine_minimizer(p: np.ndarray, reference_subset: np.ndarray, interpolator, x: int ,y: int) -> float:
-    """
-    Given a reference subset and deformed image find the values of p (affine transformation) that 
-    minimise the cost function (SSD,NSSD) using a levenberg-marquardt algorithm
-    
-    Parameters:
-    p                       (np.ndarray): parameters that are optimised by LM algorithm. Eq. (5.20) of Schreier book.
-    reference_subset        (np.ndarray): reference subset
-    deformed_image_interp   (np.ndarray): interpolated deformed image where we will search for the reference subset
-    x                       (int): coordinate at centre of reference subset along x-axis
-    y:                      (int): coordinate at centre of reference subset along y-axis
-    subset_size             (np.ndarray): subset_size in number of pixels
-    """
-
-    subset_size = reference_subset.shape[0]
-    half_size = subset_size // 2
-
-    # reference image subset
-    x1, x2 = x - half_size, x + half_size + 1
-    y1, y2 = y - half_size, y + half_size + 1
-
-    subset_x = np.arange(x - half_size, x + half_size + 1)
-    subset_y = np.arange(y - half_size, y + half_size + 1)
-    xx, yy = np.meshgrid(subset_x, subset_y)    
-
-    # list of coordinates 
-    coords_x = np.arange(x1,x2,1)
-    coords_y = np.arange(y1,y2,1)
-
-    #pixel coordinates of reference subset
-    xx, yy = np.meshgrid(coords_x,coords_y)
+def subset_search_affine_minimizer(p: np.ndarray, reference_subset: np.ndarray, interpolator, xx: np.ndarray ,yy: np.ndarray) -> float:
 
     # apply shape function to obtain subset subpixel coordinates. should always be the same size as reference subset
-    deformed_coords_x = (p[0] + (1 + p[2]) * xx + p[3] * yy).flatten()
-    deformed_coords_y = (p[1] + p[4] * xx + (1 + p[5]) * yy).flatten()
+    deformed_coords_x = (p[0] + (1 + p[2]) * xx + p[3] * yy)
+    deformed_coords_y = (p[1] + p[4] * xx + (1 + p[5]) * yy)
 
     interp_values = interpolator(deformed_coords_y,deformed_coords_x,grid=False) 
 
-    ssd_val = correlation.ssd(reference_subset.flatten(), interp_values)
-
-    # value debugging
-    # ic(deformed_coords_x)
-    # ic(deformed_coords_y)
-    # ic(deformed_coords_x.shape)
-    # ic(reference_subset.shape)
-    # ic(p)
-    # ic(ssd_val)
-
-    # # figure debugging
-    # fig, axes = plt.subplots(1, 3, figsize=(10, 7)) 
-    # axes[0].set_title("Subset in Original Image")
-    # axes[1].set_title("Deformed Image")
-    # axes[0].imshow(reference_subset,origin="lower")
-    # axes[1].scatter(deformed_coords_x,deformed_coords_y,c=interp_values)
-    # plt.tight_layout()  
-    # plt.show()
-
+    ssd_val = correlation.ssd(reference_subset, interp_values)
 
     return ssd_val
+
+def gradient(p: np.ndarray, reference_subset: np.ndarray, interpolator, xx: np.ndarray, yy: np.ndarray) -> np.ndarray:
+    # Compute the deformed coordinates for the affine transformation
+    deformed_coords_x = p[0] + (1 + p[2]) * xx + p[3] * yy
+    deformed_coords_y = p[1] + p[4] * xx + (1 + p[5]) * yy
+
+    # Compute the derivatives of the interpolation with respect to x and y
+    dx_values = interpolator(deformed_coords_y, deformed_coords_x, dx=1, dy=0, grid=False)  # Derivative w.r.t. x
+    dy_values = interpolator(deformed_coords_y, deformed_coords_x, dx=0, dy=1, grid=False)  # Derivative w.r.t. y
+
+    # Compute the SSD residuals
+    residual_x = reference_subset - dx_values
+    residual_y = reference_subset - dy_values
+
+    # Initialize the gradient vector with the same size as p
+    grad = np.zeros_like(p)
+
+    # Gradients w.r.t. p[0] (translation in x)
+    grad[0] = -2 * np.sum(residual_x * dx_values)
+
+    # Gradients w.r.t. p[1] (translation in y)
+    grad[1] = -2 * np.sum(residual_y * dy_values)
+
+    # Gradients w.r.t. p[2] (scaling in x)
+    grad[2] = -2 * np.sum(residual_x * dx_values * xx)
+
+    # Gradients w.r.t. p[3] (shear in x-y plane)
+    grad[3] = -2 * np.sum(residual_x * dx_values * yy)
+
+    # Gradients w.r.t. p[4] (shear in y-x plane)
+    grad[4] = -2 * np.sum(residual_y * dy_values * xx)
+
+    # Gradients w.r.t. p[5] (scaling in y)
+    grad[5] = -2 * np.sum(residual_y * dy_values * yy)
+
+    return grad
